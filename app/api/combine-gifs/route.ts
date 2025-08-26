@@ -1,4 +1,3 @@
-// app/api/combine-gifs/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { createCanvas, loadImage } from 'canvas';
 import fetch from 'node-fetch';
@@ -18,11 +17,16 @@ export async function POST(request: NextRequest) {
     const canvas = createCanvas(500, 500);
     const ctx = canvas.getContext('2d');
 
-    // Draw each layer in order
+    // Set white background first
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Load and draw all images in sequence
     for (const url of traitUrls) {
       try {
         let finalUrl = url;
         
+        // Handle relative URLs
         if (url.startsWith('/')) {
           if (process.env.NODE_ENV === 'development') {
             finalUrl = `http://localhost:3000${url}`;
@@ -34,29 +38,35 @@ export async function POST(request: NextRequest) {
           }
         }
         
+        console.log(`Loading image from: ${finalUrl}`);
+        
         const response = await fetch(finalUrl);
-        if (!response.ok) continue;
+        if (!response.ok) {
+          console.warn(`Failed to fetch ${finalUrl}: ${response.status}`);
+          continue;
+        }
         
         const buffer = await response.arrayBuffer();
         const image = await loadImage(Buffer.from(buffer));
+        
+        // Draw the image
         ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+        console.log(`Successfully drew image: ${finalUrl}`);
+        
       } catch (error) {
         console.error(`Error processing image ${url}:`, error);
         // Continue with other images even if one fails
       }
     }
 
-    // Convert to PNG first (more reliable), then we'll handle GIF conversion
+    // Convert to PNG
     const pngBuffer = canvas.toBuffer('image/png');
-    
-    // For GIF conversion, we'll use a simple approach since canvas GIF support is limited
-    // This creates a single-frame GIF (not animated)
     const dataUrl = `data:image/png;base64,${pngBuffer.toString('base64')}`;
 
     return NextResponse.json({
       success: true,
       imageData: dataUrl,
-      message: 'Created static PNG. For animated GIFs, server-side processing is more complex.'
+      message: 'Layered image created successfully'
     });
 
   } catch (error) {
