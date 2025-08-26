@@ -5,12 +5,12 @@ import { useEffect, useRef } from 'react';
 import GIF from 'gif.js';
 
 interface GifGeneratorProps {
-  traits: any;
+  traits: unknown;
   onGifGenerated: (url: string) => void;
 }
 
 export default function GifGenerator({ traits, onGifGenerated }: GifGeneratorProps) {
-  const gifRef = useRef<any>(null);
+  const gifRef = useRef<unknown>(null);
 
   useEffect(() => {
     // Check if any traits are selected
