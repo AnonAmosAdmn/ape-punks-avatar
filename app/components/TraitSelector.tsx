@@ -32,6 +32,11 @@ export default function TraitSelector({ traitType, traits, selectedTrait, onSele
                   src={trait.image}
                   alt={trait.name}
                   className="w-16 h-16 object-contain rounded"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = 'none';
+                    console.error(`Failed to load trait image: ${trait.image}`);
+                  }}
                 />
                 {isGif && (
                   <div className="absolute top-0 right-0 bg-purple-500 text-xs px-1 rounded-bl-lg rounded-tr">

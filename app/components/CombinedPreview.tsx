@@ -25,12 +25,16 @@ export default function CombinedPreview({ traits, onGifGenerated, onProcessingSt
       return;
     }
 
-    // For client-side preview, we'll just stack the GIFs using HTML
+    // For client-side preview, we'll just stack the images using HTML
     if (containerRef.current) {
-      // Clear previous content
+      // Clear previous content but keep the fallback message container
+      const fallback = containerRef.current.querySelector('.no-traits-message');
       containerRef.current.innerHTML = '';
+      if (fallback) {
+        containerRef.current.appendChild(fallback);
+      }
       
-      // Add each GIF layer in the correct order
+      // Add each image layer in the correct z-order
       const traitOrder: (keyof AvatarTraits)[] = [
         'background', 'fur', 'face', 'eyes', 'mouth', 'head', 'mask', 'minion'
       ];
@@ -42,6 +46,10 @@ export default function CombinedPreview({ traits, onGifGenerated, onProcessingSt
           img.src = trait.image;
           img.alt = trait.name;
           img.className = 'absolute top-0 left-0 w-full h-full object-contain';
+          img.onerror = () => {
+            console.error(`Failed to load image: ${trait.image}`);
+            img.style.display = 'none';
+          };
           containerRef.current?.appendChild(img);
         }
       });
@@ -53,11 +61,11 @@ export default function CombinedPreview({ traits, onGifGenerated, onProcessingSt
     <div className="relative">
       <div 
         ref={containerRef}
-        className="avatar-container mx-auto border-4 border-indigo-600 rounded-lg bg-gray-900 relative"
+        className="avatar-container mx-auto border-4 border-indigo-600 rounded-lg bg-gray-900 relative overflow-hidden"
         style={{ width: '400px', height: '400px' }}
       >
         {Object.values(traits).every(trait => trait === null) && (
-          <div className="flex items-center justify-center h-full text-gray-500">
+          <div className="no-traits-message flex items-center justify-center h-full text-gray-500">
             Select traits to build your avatar
           </div>
         )}
