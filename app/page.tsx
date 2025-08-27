@@ -10,33 +10,41 @@ import SaveButton from './components/SaveButton';
 // Sample trait data with GIF examples
 const traitOptions: Record<TraitType, Trait[]> = {
   background: [
+    { name: 'None', value: 'none', image: '/assets/transparent.gif' },
     { name: 'Blue Sky', value: 'blue-sky', image: '/assets/background/1.gif' },
     { name: 'Space', value: 'space', image: '/assets/background/2.gif' },
   ],
   eyes: [
+    { name: 'None', value: 'none', image: '/assets/transparent.gif' },
     { name: 'Normal', value: 'normal', image: '/assets/eyes/14.gif' },
     { name: 'Laser', value: 'laser', image: '/assets/eyes/15.gif' },
   ],
   face: [
+    { name: 'None', value: 'none', image: '/assets/transparent.gif' },
     { name: 'Round', value: 'round', image: '/assets/face/3.gif' },
   ],
   fur: [
+    { name: 'None', value: 'none', image: '/assets/transparent.gif' },
     { name: 'Brown', value: 'brown', image: '/assets/fur/4.gif' },
     { name: 'White', value: 'white', image: '/assets/fur/5.gif' },
   ],
   head: [
+    { name: 'None', value: 'none', image: '/assets/transparent.gif' },
     { name: 'Cap', value: 'cap', image: '/assets/head/6.gif' },
     { name: 'Crown', value: 'crown', image: '/assets/head/7.gif' },
   ],
   mask: [
+    { name: 'None', value: 'none', image: '/assets/transparent.gif' },
     { name: 'Surgical', value: 'surgical', image: '/assets/mask/8.gif' },
     { name: 'Gas', value: 'gas', image: '/assets/mask/9.gif' },
   ],
   minion: [
-    { name: 'None', value: 'none', image: '/assets/minion/10.gif' },
+    { name: 'None', value: 'none', image: '/assets/transparent.gif' },
+    { name: 'Frog', value: 'frog', image: '/assets/minion/10.gif' },
     { name: 'Robot', value: 'robot', image: '/assets/minion/11.gif' },
   ],
   mouth: [
+    { name: 'None', value: 'none', image: '/assets/transparent.gif' },
     { name: 'Smile', value: 'smile', image: '/assets/mouth/12.gif' },
     { name: 'Open', value: 'open', image: '/assets/mouth/13.gif' },
   ],
@@ -61,7 +69,7 @@ export default function Home() {
   const handleTraitSelect = (traitType: TraitType, trait: Trait) => {
     const newTraits = {
       ...traits,
-      [traitType]: trait,
+      [traitType]: trait.value === 'none' ? null : trait,
     };
     setTraits(newTraits);
   };
