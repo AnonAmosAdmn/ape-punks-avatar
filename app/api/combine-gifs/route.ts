@@ -5,6 +5,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createCanvas, loadImage } from 'canvas';
 import fetch from 'node-fetch';
 import { GifReader } from 'omggif';
+// Use gifencoder package instead
+import GIFEncoder from 'gifencoder';
 
 async function fetchImageWithRetry(url: string, retries = 3): Promise<Buffer> {
   for (let i = 0; i < retries; i++) {
@@ -175,28 +177,82 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // For now, return the first frame as PNG since GIF encoding is complex
-    const firstFrame = combinedFrames[0];
-    const resultCanvas = createCanvas(canvasWidth, canvasHeight);
-    const resultCtx = resultCanvas.getContext('2d');
-    
-    // Create ImageData using createImageData
-    const resultImageData = resultCtx.createImageData(canvasWidth, canvasHeight);
-    resultImageData.data.set(firstFrame.pixels);
-    resultCtx.putImageData(resultImageData, 0, 0);
+    // Create animated GIF if we have multiple frames or GIF inputs
+    if (hasGifs || combinedFrames.length > 1) {
+      // Create GIF encoder
+      const encoder = new GIFEncoder(canvasWidth, canvasHeight);
+      
+      // Create a stream to collect the GIF data
+      const stream = encoder.createReadStream();
+      const chunks: Buffer[] = [];
+      
+      stream.on('data', (chunk: Buffer) => {
+        chunks.push(chunk);
+      });
+      
+      return new Promise((resolve) => {
+        stream.on('end', () => {
+          // Combine all chunks into a single buffer
+          const gifBuffer = Buffer.concat(chunks);
+          const dataUrl = `data:image/gif;base64,${gifBuffer.toString('base64')}`;
+          
+          resolve(NextResponse.json({ 
+            success: true, 
+            imageData: dataUrl, 
+            format: 'gif',
+            frameCount: combinedFrames.length,
+            message: 'Animated GIF created successfully'
+          }));
+        });
+        
+        // Start the encoder
+        encoder.start();
+        encoder.setRepeat(0); // 0 for repeat, -1 for no-repeat
+        encoder.setDelay(100); // Default delay, will be overridden per frame
+        encoder.setQuality(10); // Image quality (1-20)
+        
+        // Add each frame to the GIF
+        for (const frame of combinedFrames) {
+          encoder.setDelay(frame.delay);
+          
+          // Create a canvas for this frame
+          const frameCanvas = createCanvas(canvasWidth, canvasHeight);
+          const frameCtx = frameCanvas.getContext('2d');
+          
+          // Create ImageData and put it on the canvas
+          const imageData = frameCtx.createImageData(canvasWidth, canvasHeight);
+          imageData.data.set(frame.pixels);
+          frameCtx.putImageData(imageData, 0, 0);
+          
+          // Add the frame to the encoder
+          encoder.addFrame(frameCtx as any);
+        }
+        
+        // Finish the GIF
+        encoder.finish();
+      });
+    } else {
+      // Fallback to PNG for single frame
+      const firstFrame = combinedFrames[0];
+      const resultCanvas = createCanvas(canvasWidth, canvasHeight);
+      const resultCtx = resultCanvas.getContext('2d');
+      
+      // Create ImageData using createImageData
+      const resultImageData = resultCtx.createImageData(canvasWidth, canvasHeight);
+      resultImageData.data.set(firstFrame.pixels);
+      resultCtx.putImageData(resultImageData, 0, 0);
 
-    const pngBuffer = resultCanvas.toBuffer('image/png');
-    const dataUrl = `data:image/png;base64,${pngBuffer.toString('base64')}`;
+      const pngBuffer = resultCanvas.toBuffer('image/png');
+      const dataUrl = `data:image/png;base64,${pngBuffer.toString('base64')}`;
 
-    return NextResponse.json({ 
-      success: true, 
-      imageData: dataUrl, 
-      format: 'png',
-      frameCount: maxFrames,
-      message: hasGifs 
-        ? 'Using first frame as PNG (GIF encoding requires additional setup). Consider using a client-side solution for animated GIFs.' 
-        : 'PNG created from static images'
-    });
+      return NextResponse.json({ 
+        success: true, 
+        imageData: dataUrl, 
+        format: 'png',
+        frameCount: 1,
+        message: 'PNG created from static images'
+      });
+    }
 
   } catch (error) {
     console.error('Error combining images:', error);
