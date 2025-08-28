@@ -1,4 +1,3 @@
-// app/components/SaveButton.tsx
 'use client';
 
 import { AvatarTraits } from '@/types';
@@ -33,7 +32,7 @@ export default function SaveButton({ traits }: SaveButtonProps) {
         .filter(trait => trait !== null)
         .map(trait => trait!.image);
 
-      // Use server API to combine images
+      // Use server API to combine GIFs
       const response = await fetch('/api/combine-gifs', {
         method: 'POST',
         headers: {
@@ -53,16 +52,16 @@ export default function SaveButton({ traits }: SaveButtonProps) {
         // Create download link
         const a = document.createElement('a');
         a.href = result.imageData;
-        a.download = 'nft-avatar.png';
+        a.download = 'nft-avatar.gif';
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
       } else {
-        throw new Error(result.error || 'Failed to generate image');
+        throw new Error(result.error || 'Failed to generate GIF');
       }
       
     } catch (error) {
-      console.error('Error generating image:', error);
+      console.error('Error generating GIF:', error);
       alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsProcessing(false);
@@ -81,10 +80,10 @@ export default function SaveButton({ traits }: SaveButtonProps) {
       {isProcessing ? (
         <>
           <span className="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full"></span>
-          Generating Image...
+          Generating GIF...
         </>
       ) : (
-        'Download as PNG'
+        'Download as GIF'
       )}
     </button>
   );

@@ -1,0 +1,1 @@
+importScripts('https://unpkg.com/gif.js@0.2.0/dist/gif.worker.js');
