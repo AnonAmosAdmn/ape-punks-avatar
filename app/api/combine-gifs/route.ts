@@ -98,23 +98,22 @@ function getAbsoluteUrl(relativeUrl: string): string {
 }
 
 function rgbaToBitmapImage(rgbaData: Uint8Array, width: number, height: number): BitmapImage {
-  const bitmapBuffer = Buffer.alloc(width * height * 3);
-  const alphaBuffer = Buffer.alloc(width * height);
+  // Convert RGBA to RGB format (remove alpha channel for BitmapImage)
+  const rgbBuffer = Buffer.alloc(width * height * 3);
   
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const rgbaIdx = (y * width + x) * 4;
       const rgbIdx = (y * width + x) * 3;
-      const alphaIdx = y * width + x;
       
-      bitmapBuffer[rgbIdx] = rgbaData[rgbaIdx];
-      bitmapBuffer[rgbIdx + 1] = rgbaData[rgbaIdx + 1];
-      bitmapBuffer[rgbIdx + 2] = rgbaData[rgbaIdx + 2];
-      alphaBuffer[alphaIdx] = rgbaData[rgbaIdx + 3];
+      rgbBuffer[rgbIdx] = rgbaData[rgbaIdx];
+      rgbBuffer[rgbIdx + 1] = rgbaData[rgbaIdx + 1];
+      rgbBuffer[rgbIdx + 2] = rgbaData[rgbaIdx + 2];
     }
   }
   
-  return new BitmapImage(width, height, bitmapBuffer, alphaBuffer);
+  // BitmapImage expects RGB data without separate alpha
+  return new BitmapImage(width, height, rgbBuffer);
 }
 
 async function loadStaticImage(buffer: Buffer, width: number, height: number): Promise<Uint8Array> {
