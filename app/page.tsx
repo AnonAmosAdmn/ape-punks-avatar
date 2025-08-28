@@ -1,3 +1,5 @@
+// by anonamosadmn
+
 // app/page.tsx
 'use client';
 
