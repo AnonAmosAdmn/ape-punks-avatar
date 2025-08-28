@@ -1,4 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+export const runtime = 'nodejs';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { createCanvas, loadImage, ImageData } from 'canvas';
 import fetch from 'node-fetch';
@@ -34,13 +36,16 @@ function extractGifFrames(reader: any) {
       reader.decodeAndBlitFrameRGBA(f, raw);
     } else if (decodeBGRA) {
       reader.decodeAndBlitFrameBGRA(f, raw);
+      // Convert BGRA to RGBA
       for (let i = 0; i < raw.length; i += 4) {
         const b = raw[i + 0];
         const g = raw[i + 1];
         const r = raw[i + 2];
+        const a = raw[i + 3];
         raw[i + 0] = r;
         raw[i + 1] = g;
         raw[i + 2] = b;
+        raw[i + 3] = a;
       }
     }
     const frameInfo = reader.frameInfo(f);
@@ -79,74 +84,162 @@ export async function POST(request: NextRequest) {
       return idx(a) - idx(b);
     });
 
+    console.log('Processing layers in order:', sortedUrls);
+
     const assets: Array<any> = [];
     let canvasWidth = 0;
     let canvasHeight = 0;
     let maxFrames = 1;
 
     for (const url of sortedUrls) {
-      const buffer = await fetchImageWithRetry(url);
-      if (url.toLowerCase().endsWith('.gif')) {
-        const reader = new GifReader(buffer);
-        const { width, height, frames } = extractGifFrames(reader);
-        maxFrames = Math.max(maxFrames, frames.length);
-        assets.push({ isGif: true, width, height, frames, frameCount: frames.length });
-        if (!canvasWidth) { canvasWidth = width; canvasHeight = height; }
-      } else {
-        const image = await loadImage(buffer);
-        assets.push({ isGif: false, image, width: image.width, height: image.height });
-        if (!canvasWidth) { canvasWidth = image.width; canvasHeight = image.height; }
+      try {
+        console.log(`Loading: ${url}`);
+        const buffer = await fetchImageWithRetry(url);
+        
+        if (url.toLowerCase().endsWith('.gif')) {
+          const reader = new GifReader(buffer);
+          const { width, height, frames } = extractGifFrames(reader);
+          console.log(`GIF loaded: ${frames.length} frames, ${width}x${height}`);
+          maxFrames = Math.max(maxFrames, frames.length);
+          assets.push({ 
+            isGif: true, 
+            width, 
+            height, 
+            frames, 
+            frameCount: frames.length,
+            url 
+          });
+          if (!canvasWidth) { 
+            canvasWidth = width; 
+            canvasHeight = height; 
+          }
+        } else {
+          const image = await loadImage(buffer);
+          console.log(`Static image loaded: ${image.width}x${image.height}`);
+          assets.push({ 
+            isGif: false, 
+            image, 
+            width: image.width, 
+            height: image.height,
+            url 
+          });
+          if (!canvasWidth) { 
+            canvasWidth = image.width; 
+            canvasHeight = image.height; 
+          }
+        }
+      } catch (error) {
+        console.error(`Failed to load ${url}:`, error);
+        // Continue with other assets
       }
     }
 
-    if (!canvasWidth) { canvasWidth = 1000; canvasHeight = 1000; }
+    // Set default dimensions if none were found
+    if (!canvasWidth) { 
+      canvasWidth = 1000; 
+      canvasHeight = 1000; 
+    }
+
+    console.log(`Canvas size: ${canvasWidth}x${canvasHeight}, Max frames: ${maxFrames}`);
+
+    // If no GIFs were found, create a simple PNG
+    const hasGifs = assets.some(asset => asset.isGif);
+    if (!hasGifs) {
+      const canvas = createCanvas(canvasWidth, canvasHeight);
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+      for (const asset of assets) {
+        if (!asset.isGif) {
+          ctx.drawImage(asset.image, 0, 0, canvasWidth, canvasHeight);
+        }
+      }
+
+      const pngBuffer = canvas.toBuffer('image/png');
+      const dataUrl = `data:image/png;base64,${pngBuffer.toString('base64')}`;
+
+      return NextResponse.json({ 
+        success: true, 
+        imageData: dataUrl, 
+        format: 'png',
+        message: 'PNG created from static images'
+      });
+    }
+
+    // Create GIF with all frames
+    const encoder = new GIFEncoder(canvasWidth, canvasHeight);
+    const chunks: Buffer[] = [];
+
+    // Set up stream to collect GIF data
+    const stream = encoder.createReadStream();
+    stream.on('data', (chunk: Buffer) => {
+      chunks.push(chunk);
+    });
+
+    encoder.start();
+    encoder.setRepeat(0); // Infinite loop
+    encoder.setDelay(100); // Default delay
+    encoder.setQuality(10); // Lower quality for smaller file size
 
     const canvas = createCanvas(canvasWidth, canvasHeight);
     const ctx = canvas.getContext('2d');
 
-    const encoder = new GIFEncoder(canvasWidth, canvasHeight);
-    const stream = encoder.createReadStream();
-    const chunks: Buffer[] = [];
-    stream.on('data', (chunk) => chunks.push(chunk));
-
-    encoder.start();
-    encoder.setRepeat(0);
-    encoder.setQuality(10);
-
     for (let frameIndex = 0; frameIndex < maxFrames; frameIndex++) {
       ctx.clearRect(0, 0, canvasWidth, canvasHeight);
-      const delays: number[] = [];
+      let frameDelay = 100;
 
       for (const asset of assets) {
         if (asset.isGif) {
-          const frame = asset.frames[frameIndex % asset.frameCount];
+          const frameNum = frameIndex % asset.frameCount;
+          const frame = asset.frames[frameNum];
+          
+          // Create temporary canvas for this frame
+          const tempCanvas = createCanvas(asset.width, asset.height);
+          const tempCtx = tempCanvas.getContext('2d');
           const imageData = new ImageData(frame.pixels, asset.width, asset.height);
-          const tmp = createCanvas(asset.width, asset.height);
-          const tctx = tmp.getContext('2d');
-          tctx.putImageData(imageData, 0, 0);
-
-          ctx.drawImage(tmp, 0, 0, canvasWidth, canvasHeight);
-
-          delays.push(frame.delay || 100);
+          tempCtx.putImageData(imageData, 0, 0);
+          
+          // Draw onto main canvas
+          ctx.drawImage(tempCanvas, 0, 0, canvasWidth, canvasHeight);
+          
+          // Use this frame's delay if available
+          if (frame.delay) {
+            frameDelay = Math.max(frameDelay, frame.delay);
+          }
         } else {
+          // Draw static image
           ctx.drawImage(asset.image, 0, 0, canvasWidth, canvasHeight);
-          delays.push(100);
         }
       }
 
-      encoder.setDelay(Math.max(20, Math.max(...delays)));
-      encoder.addFrame(ctx as any); // <-- cast to any to satisfy TS
+      // Set delay for this frame
+      encoder.setDelay(frameDelay);
+      encoder.addFrame(ctx as any);
     }
 
     encoder.finish();
-    await new Promise((resolve) => stream.on('end', resolve));
+
+    // Wait for stream to finish
+    await new Promise((resolve) => {
+      stream.on('end', resolve);
+    });
 
     const outputBuffer = Buffer.concat(chunks);
     const dataUrl = `data:image/gif;base64,${outputBuffer.toString('base64')}`;
 
-    return NextResponse.json({ success: true, imageData: dataUrl, format: 'gif' });
+    return NextResponse.json({ 
+      success: true, 
+      imageData: dataUrl, 
+      format: 'gif',
+      frameCount: maxFrames,
+      message: 'GIF created successfully'
+    });
+
   } catch (error) {
     console.error('Error combining GIFs:', error);
-    return NextResponse.json({ error: 'Failed to combine GIFs', details: (error as Error).message }, { status: 500 });
+    return NextResponse.json({ 
+      error: 'Failed to combine GIFs', 
+      details: error instanceof Error ? error.message : 'Unknown error' 
+    }, { status: 500 });
   }
 }
