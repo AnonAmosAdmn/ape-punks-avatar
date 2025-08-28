@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server';
 import { createCanvas, loadImage, ImageData } from 'canvas';
 import fetch from 'node-fetch';
@@ -115,6 +116,7 @@ export async function POST(request: NextRequest) {
     for (let frameIndex = 0; frameIndex < maxFrames; frameIndex++) {
       ctx.clearRect(0, 0, canvasWidth, canvasHeight);
       const delays: number[] = [];
+
       for (const asset of assets) {
         if (asset.isGif) {
           const frame = asset.frames[frameIndex % asset.frameCount];
@@ -123,7 +125,6 @@ export async function POST(request: NextRequest) {
           const tctx = tmp.getContext('2d');
           tctx.putImageData(imageData, 0, 0);
 
-          // Now draw with alpha compositing
           ctx.drawImage(tmp, 0, 0, canvasWidth, canvasHeight);
 
           delays.push(frame.delay || 100);
@@ -132,8 +133,9 @@ export async function POST(request: NextRequest) {
           delays.push(100);
         }
       }
+
       encoder.setDelay(Math.max(20, Math.max(...delays)));
-      encoder.addFrame(ctx);
+      encoder.addFrame(ctx as any); // <-- cast to any to satisfy TS
     }
 
     encoder.finish();
