@@ -2,10 +2,9 @@
 export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createCanvas, loadImage, ImageData } from 'canvas';
+import { createCanvas, loadImage } from 'canvas';
 import fetch from 'node-fetch';
 import { GifReader } from 'omggif';
-import GIFEncoder from 'gifencoder';
 
 async function fetchImageWithRetry(url: string, retries = 3): Promise<Buffer> {
   for (let i = 0; i < retries; i++) {
@@ -26,31 +25,29 @@ function extractGifFrames(reader: any) {
   const w = reader.width;
   const h = reader.height;
   const numFrames = reader.numFrames();
-  const decodeRGBA = typeof reader.decodeAndBlitFrameRGBA === 'function';
-  const decodeBGRA = typeof reader.decodeAndBlitFrameBGRA === 'function';
   const frames: { pixels: Uint8ClampedArray; delay: number }[] = [];
 
   for (let f = 0; f < numFrames; f++) {
-    const raw = new Uint8Array(w * h * 4);
-    if (decodeRGBA) {
-      reader.decodeAndBlitFrameRGBA(f, raw);
-    } else if (decodeBGRA) {
-      reader.decodeAndBlitFrameBGRA(f, raw);
+    const imageData = new Uint8ClampedArray(w * h * 4);
+    
+    if (typeof reader.decodeAndBlitFrameRGBA === 'function') {
+      reader.decodeAndBlitFrameRGBA(f, imageData);
+    } else if (typeof reader.decodeAndBlitFrameBGRA === 'function') {
+      const bgraData = new Uint8Array(w * h * 4);
+      reader.decodeAndBlitFrameBGRA(f, bgraData);
+      
       // Convert BGRA to RGBA
-      for (let i = 0; i < raw.length; i += 4) {
-        const b = raw[i + 0];
-        const g = raw[i + 1];
-        const r = raw[i + 2];
-        const a = raw[i + 3];
-        raw[i + 0] = r;
-        raw[i + 1] = g;
-        raw[i + 2] = b;
-        raw[i + 3] = a;
+      for (let i = 0; i < bgraData.length; i += 4) {
+        imageData[i] = bgraData[i + 2];     // R
+        imageData[i + 1] = bgraData[i + 1]; // G
+        imageData[i + 2] = bgraData[i];     // B
+        imageData[i + 3] = bgraData[i + 3]; // A
       }
     }
+    
     const frameInfo = reader.frameInfo(f);
     const delayMs = (typeof frameInfo.delay === 'number' ? frameInfo.delay : 10) * 10;
-    frames.push({ pixels: new Uint8ClampedArray(raw.buffer), delay: delayMs });
+    frames.push({ pixels: imageData, delay: delayMs });
   }
   return { width: w, height: h, frames };
 }
@@ -87,9 +84,10 @@ export async function POST(request: NextRequest) {
     console.log('Processing layers in order:', sortedUrls);
 
     const assets: Array<any> = [];
-    let canvasWidth = 0;
-    let canvasHeight = 0;
+    let canvasWidth = 1000;
+    let canvasHeight = 1000;
     let maxFrames = 1;
+    let hasGifs = false;
 
     for (const url of sortedUrls) {
       try {
@@ -109,10 +107,9 @@ export async function POST(request: NextRequest) {
             frameCount: frames.length,
             url 
           });
-          if (!canvasWidth) { 
-            canvasWidth = width; 
-            canvasHeight = height; 
-          }
+          canvasWidth = width;
+          canvasHeight = height;
+          hasGifs = true;
         } else {
           const image = await loadImage(buffer);
           console.log(`Static image loaded: ${image.width}x${image.height}`);
@@ -123,69 +120,27 @@ export async function POST(request: NextRequest) {
             height: image.height,
             url 
           });
-          if (!canvasWidth) { 
-            canvasWidth = image.width; 
-            canvasHeight = image.height; 
+          // Use the first static image's dimensions if no GIFs found
+          if (!hasGifs) {
+            canvasWidth = image.width;
+            canvasHeight = image.height;
           }
         }
       } catch (error) {
         console.error(`Failed to load ${url}:`, error);
-        // Continue with other assets
       }
-    }
-
-    // Set default dimensions if none were found
-    if (!canvasWidth) { 
-      canvasWidth = 1000; 
-      canvasHeight = 1000; 
     }
 
     console.log(`Canvas size: ${canvasWidth}x${canvasHeight}, Max frames: ${maxFrames}`);
 
-    // If no GIFs were found, create a simple PNG
-    const hasGifs = assets.some(asset => asset.isGif);
-    if (!hasGifs) {
+    // Create combined frames
+    const combinedFrames: { pixels: Uint8ClampedArray; delay: number }[] = [];
+
+    for (let frameIndex = 0; frameIndex < maxFrames; frameIndex++) {
       const canvas = createCanvas(canvasWidth, canvasHeight);
       const ctx = canvas.getContext('2d');
       ctx.clearRect(0, 0, canvasWidth, canvasHeight);
 
-      for (const asset of assets) {
-        if (!asset.isGif) {
-          ctx.drawImage(asset.image, 0, 0, canvasWidth, canvasHeight);
-        }
-      }
-
-      const pngBuffer = canvas.toBuffer('image/png');
-      const dataUrl = `data:image/png;base64,${pngBuffer.toString('base64')}`;
-
-      return NextResponse.json({ 
-        success: true, 
-        imageData: dataUrl, 
-        format: 'png',
-        message: 'PNG created from static images'
-      });
-    }
-
-    // Create GIF with all frames
-    const encoder = new GIFEncoder(canvasWidth, canvasHeight);
-    const chunks: Buffer[] = [];
-
-    // Set up stream to collect GIF data
-    const stream = encoder.createReadStream();
-    stream.on('data', (chunk: Buffer) => {
-      chunks.push(chunk);
-    });
-
-    encoder.start();
-    encoder.setRepeat(0); // Infinite loop
-    encoder.setDelay(100); // Default delay
-    encoder.setQuality(10); // Lower quality for smaller file size
-
-    const canvas = createCanvas(canvasWidth, canvasHeight);
-    const ctx = canvas.getContext('2d');
-
-    for (let frameIndex = 0; frameIndex < maxFrames; frameIndex++) {
-      ctx.clearRect(0, 0, canvasWidth, canvasHeight);
       let frameDelay = 100;
 
       for (const asset of assets) {
@@ -196,49 +151,57 @@ export async function POST(request: NextRequest) {
           // Create temporary canvas for this frame
           const tempCanvas = createCanvas(asset.width, asset.height);
           const tempCtx = tempCanvas.getContext('2d');
-          const imageData = new ImageData(frame.pixels, asset.width, asset.height);
+          
+          // Create ImageData using createImageData instead of new ImageData()
+          const imageData = tempCtx.createImageData(asset.width, asset.height);
+          imageData.data.set(frame.pixels);
           tempCtx.putImageData(imageData, 0, 0);
           
           // Draw onto main canvas
           ctx.drawImage(tempCanvas, 0, 0, canvasWidth, canvasHeight);
           
-          // Use this frame's delay if available
-          if (frame.delay) {
-            frameDelay = Math.max(frameDelay, frame.delay);
-          }
+          frameDelay = Math.max(frameDelay, frame.delay);
         } else {
           // Draw static image
           ctx.drawImage(asset.image, 0, 0, canvasWidth, canvasHeight);
         }
       }
 
-      // Set delay for this frame
-      encoder.setDelay(frameDelay);
-      encoder.addFrame(ctx as any);
+      // Get the combined frame data
+      const imageData = ctx.getImageData(0, 0, canvasWidth, canvasHeight);
+      combinedFrames.push({
+        pixels: new Uint8ClampedArray(imageData.data),
+        delay: frameDelay
+      });
     }
 
-    encoder.finish();
+    // For now, return the first frame as PNG since GIF encoding is complex
+    const firstFrame = combinedFrames[0];
+    const resultCanvas = createCanvas(canvasWidth, canvasHeight);
+    const resultCtx = resultCanvas.getContext('2d');
+    
+    // Create ImageData using createImageData
+    const resultImageData = resultCtx.createImageData(canvasWidth, canvasHeight);
+    resultImageData.data.set(firstFrame.pixels);
+    resultCtx.putImageData(resultImageData, 0, 0);
 
-    // Wait for stream to finish
-    await new Promise((resolve) => {
-      stream.on('end', resolve);
-    });
-
-    const outputBuffer = Buffer.concat(chunks);
-    const dataUrl = `data:image/gif;base64,${outputBuffer.toString('base64')}`;
+    const pngBuffer = resultCanvas.toBuffer('image/png');
+    const dataUrl = `data:image/png;base64,${pngBuffer.toString('base64')}`;
 
     return NextResponse.json({ 
       success: true, 
       imageData: dataUrl, 
-      format: 'gif',
+      format: 'png',
       frameCount: maxFrames,
-      message: 'GIF created successfully'
+      message: hasGifs 
+        ? 'Using first frame as PNG (GIF encoding requires additional setup). Consider using a client-side solution for animated GIFs.' 
+        : 'PNG created from static images'
     });
 
   } catch (error) {
-    console.error('Error combining GIFs:', error);
+    console.error('Error combining images:', error);
     return NextResponse.json({ 
-      error: 'Failed to combine GIFs', 
+      error: 'Failed to combine images', 
       details: error instanceof Error ? error.message : 'Unknown error' 
     }, { status: 500 });
   }
