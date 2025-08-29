@@ -82,7 +82,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const validUrls = traitUrls.filter(Boolean).map((url: string) => {
       if (url.startsWith('/')) {
-        const baseUrl = process.env.NEXTAUTH_URL || process.env.VERCEL_URL || 'http://localhost:3000';
+        const baseUrl = 'https://ape-punks-avatar.vercel.app/';
         return `${baseUrl}${url}`;
       }
       return url;
