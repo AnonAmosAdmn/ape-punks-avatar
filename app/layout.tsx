@@ -5,7 +5,7 @@ import './globals.css';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'PE PUNKS Avatar Creator',
+  title: 'APE PUNKS Avatar Creator',
   description: 'Create your own NFT avatar by selecting different traits',
 };
 
