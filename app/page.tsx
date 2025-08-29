@@ -1,5 +1,3 @@
-// by anonamosadmn
-
 // app/page.tsx
 'use client';
 
@@ -77,14 +75,16 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen p-8 bg-gradient-to-b from-purple-900 to-indigo-900 text-white">
-      <h1 className="text-4xl font-bold text-center mb-2">APE PUNKS Avatar Creator</h1>
-      <p className="text-center text-indigo-200 mb-8">Create your unique NFT avatar with animated traits</p>
+    <main className="min-h-screen p-4 md:p-8 bg-gradient-to-b from-purple-900 to-indigo-900 text-white">
+      <h1 className="text-2xl md:text-4xl font-bold text-center mb-2">APE PUNKS Avatar Creator</h1>
+      <p className="text-center text-indigo-200 mb-6 md:mb-8 text-sm md:text-base">
+        Create your unique NFT avatar with animated traits
+      </p>
       
-      <div className="flex flex-col lg:flex-row gap-8 max-w-6xl mx-auto">
-        <div className="flex-1 bg-indigo-800 p-6 rounded-xl shadow-lg">
-          <div className="sticky top-4">
-            <h2 className="text-2xl font-semibold mb-4">Preview</h2>
+      <div className="flex flex-col lg:flex-row gap-6 md:gap-8 max-w-6xl mx-auto">
+        <div className="lg:flex-1 bg-indigo-800 p-4 md:p-6 rounded-xl shadow-lg order-2 lg:order-1">
+          <div className="lg:sticky lg:top-4">
+            <h2 className="text-xl md:text-2xl font-semibold mb-4">Preview</h2>
             <CombinedPreview 
               traits={traits} 
               onGifGenerated={setCombinedGifUrl}
@@ -96,17 +96,19 @@ export default function Home() {
           </div>
         </div>
         
-        <div className="flex-1 bg-indigo-800 p-6 rounded-xl shadow-lg overflow-y-auto max-h-screen">
-          <h2 className="text-2xl font-semibold mb-6">Customize Your Avatar</h2>
-          {Object.entries(traitOptions).map(([traitType, options]) => (
-            <TraitSelector
-              key={traitType}
-              traitType={traitType as TraitType}
-              traits={options}
-              selectedTrait={traits[traitType as TraitType]}
-              onSelect={(trait) => handleTraitSelect(traitType as TraitType, trait)}
-            />
-          ))}
+        <div className="lg:flex-1 bg-indigo-800 p-4 md:p-6 rounded-xl shadow-lg order-1 lg:order-2">
+          <h2 className="text-xl md:text-2xl font-semibold mb-4 md:mb-6">Customize Your Avatar</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
+            {Object.entries(traitOptions).map(([traitType, options]) => (
+              <TraitSelector
+                key={traitType}
+                traitType={traitType as TraitType}
+                traits={options}
+                selectedTrait={traits[traitType as TraitType]}
+                onSelect={(trait) => handleTraitSelect(traitType as TraitType, trait)}
+              />
+            ))}
+          </div>
         </div>
       </div>
     </main>

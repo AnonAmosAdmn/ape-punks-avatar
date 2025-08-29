@@ -13,6 +13,25 @@ interface CombinedPreviewProps {
 export default function CombinedPreview({ traits, onGifGenerated, onProcessingStateChange }: CombinedPreviewProps) {
   const [error, setError] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const [containerSize, setContainerSize] = useState({ width: 300, height: 300 });
+
+  // Update container size based on window size
+  useEffect(() => {
+    const updateSize = () => {
+      if (typeof window !== 'undefined') {
+        const isMobile = window.innerWidth < 768;
+        const size = isMobile ? 280 : 400;
+        setContainerSize({ width: size, height: size });
+      }
+    };
+
+    updateSize();
+    window.addEventListener('resize', updateSize);
+    
+    return () => {
+      window.removeEventListener('resize', updateSize);
+    };
+  }, []);
 
   useEffect(() => {
     onProcessingStateChange(false);
@@ -62,10 +81,14 @@ export default function CombinedPreview({ traits, onGifGenerated, onProcessingSt
       <div 
         ref={containerRef}
         className="avatar-container mx-auto border-4 border-indigo-600 rounded-lg bg-gray-900 relative overflow-hidden"
-        style={{ width: '400px', height: '400px' }}
+        style={{ 
+          width: `${containerSize.width}px`, 
+          height: `${containerSize.height}px`,
+          maxWidth: '100%'
+        }}
       >
         {Object.values(traits).every(trait => trait === null) && (
-          <div className="no-traits-message flex items-center justify-center h-full text-gray-500">
+          <div className="no-traits-message flex items-center justify-center h-full text-gray-500 text-center p-4">
             Select traits to build your avatar
           </div>
         )}
