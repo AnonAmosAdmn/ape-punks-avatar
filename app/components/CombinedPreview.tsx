@@ -48,7 +48,7 @@ export default function CombinedPreview({ traits, onGifGenerated, onProcessingSt
   // Preload all images and track when they're loaded
   useEffect(() => {
     const traitOrder: (keyof AvatarTraits)[] = [
-      'background', 'fur', 'face', 'eyes', 'mouth', 'head', 'mask', 'minion'
+      'background', 'fur', 'eyes', 'mouth', 'head', 'mask', 'minion'
     ];
     
     // Check if any traits are selected
