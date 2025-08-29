@@ -159,8 +159,12 @@ export default function CombinedPreview({
       }
     });
 
-    // Append them all *at once* for better sync
-    imgs.forEach((img) => containerRef.current?.appendChild(img));
+    // Append them all at once *after a small delay* for better sync
+    const timeout = setTimeout(() => {
+      imgs.forEach((img) => containerRef.current?.appendChild(img));
+    }, 100); // 100ms delay
+
+    return () => clearTimeout(timeout);
   }, [allImagesLoaded, loadedImages, traits, gifSyncKey]);
 
   return (
