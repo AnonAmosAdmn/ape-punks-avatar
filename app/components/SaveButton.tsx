@@ -23,7 +23,7 @@ export default function SaveButton({ traits }: SaveButtonProps) {
 
       // Define the correct layer order
       const layerOrder: (keyof AvatarTraits)[] = [
-        'background', 'fur', 'eyes', 'mouth', 'head', 'mask', 'minion'
+        'background', 'fur', 'mouth', 'head', 'mask', 'eyes', 'minion'
       ];
 
       // Collect all trait image URLs in the correct order

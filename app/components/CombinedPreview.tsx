@@ -48,7 +48,7 @@ export default function CombinedPreview({ traits, onGifGenerated, onProcessingSt
   // Preload all images and track when they're loaded
   useEffect(() => {
     const traitOrder: (keyof AvatarTraits)[] = [
-      'background', 'fur', 'eyes', 'mouth', 'head', 'mask', 'minion'
+      'background', 'fur', 'mouth', 'head', 'mask', 'eyes', 'minion'
     ];
     
     // Check if any traits are selected
@@ -120,7 +120,7 @@ export default function CombinedPreview({ traits, onGifGenerated, onProcessingSt
     
     // Add each image layer in the correct z-order
     const traitOrder: (keyof AvatarTraits)[] = [
-      'background', 'fur', 'eyes', 'mouth', 'head', 'mask', 'minion'
+      'background', 'fur', 'mouth', 'head', 'mask', 'eyes', 'minion'
     ];
     
     traitOrder.forEach(traitType => {
