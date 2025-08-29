@@ -105,6 +105,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           canvasWidth = width;
           canvasHeight = height;
           hasGifs = true;
+        } else {
+          // Handle static images (PNG, JPEG)
+          // You'll need to implement this based on your needs
+          console.log('Static image detected:', url);
         }
       } catch (e) {
         console.error(`Failed to load ${url}`, e);
@@ -122,11 +126,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       let frameDelay = 100;
 
       for (const asset of assets) {
+        if (!asset.isGif) continue; // Skip non-GIF assets for now
+        
         const frameNum = frameIndex % asset.frameCount;
         const frame = asset.frames[frameNum];
 
-        if (!basePixels) basePixels = new Uint8Array(frame.pixels);
-        else basePixels = compositeImages(basePixels, frame.pixels);
+        if (!basePixels) {
+          basePixels = new Uint8Array(frame.pixels);
+        } else {
+          basePixels = compositeImages(basePixels, frame.pixels);
+        }
 
         frameDelay = Math.max(frameDelay, frame.delay);
       }
@@ -140,26 +149,35 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // Generate GIF
     if (hasGifs || combinedFrames.length > 1) {
-      // Create global palette from all frames
+      // Create a global palette from all frames
       const allPixels = new Uint8Array(combinedFrames.length * canvasWidth * canvasHeight * 4);
       for (let i = 0; i < combinedFrames.length; i++) {
         allPixels.set(combinedFrames[i].pixels, i * canvasWidth * canvasHeight * 4);
       }
-      const palette = quantize(allPixels, 256);
-
-      // Create encoder and add frames
-      const encoder: any = new (GIFEncoder as any)(canvasWidth, canvasHeight);
       
-      for (const frame of combinedFrames) {
-        const indexed = applyPalette(frame.pixels, palette);
-        encoder.writeFrame(indexed, canvasWidth, canvasHeight, {
-          palette: palette,
-          delay: frame.delay
-        });
+      const globalPalette = quantize(allPixels, 256);
+      const encoder: any = new (GIFEncoder as any)(canvasWidth, canvasHeight);
+
+      // Add frames with the global palette
+      for (let i = 0; i < combinedFrames.length; i++) {
+        const frame = combinedFrames[i];
+        const indexed = applyPalette(frame.pixels, globalPalette);
+
+        if (i === 0) {
+          encoder.writeFrame(indexed, canvasWidth, canvasHeight, {
+            palette: globalPalette,
+            delay: Math.max(1, Math.floor(frame.delay / 10)),
+          });
+        } else {
+          encoder.writeFrame(indexed, canvasWidth, canvasHeight, {
+            delay: Math.max(1, Math.floor(frame.delay / 10)),
+          });
+        }
       }
 
-      const gifBuffer = encoder.bytes();
-      const dataUrl = `data:image/gif;base64,${Buffer.from(gifBuffer).toString('base64')}`;
+      encoder.finish();
+      const gifBuffer = Buffer.from(encoder.bytes());
+      const dataUrl = `data:image/gif;base64,${gifBuffer.toString('base64')}`;
 
       return NextResponse.json({
         success: true,
@@ -170,7 +188,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       });
     }
 
-    // PNG fallback
+    // PNG fallback for single frame
     const firstFrame = combinedFrames[0];
     const base64Data = Buffer.from(firstFrame.pixels).toString('base64');
     const dataUrl = `data:image/png;base64,${base64Data}`;
