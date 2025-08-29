@@ -10,8 +10,14 @@ interface CombinedPreviewProps {
   onProcessingStateChange: (isProcessing: boolean) => void;
 }
 
+interface LoadedImages {
+  [key: string]: HTMLImageElement;
+}
+
 export default function CombinedPreview({ traits, onGifGenerated, onProcessingStateChange }: CombinedPreviewProps) {
   const [error, setError] = useState<string | null>(null);
+  const [loadedImages, setLoadedImages] = useState<LoadedImages>({});
+  const [allImagesLoaded, setAllImagesLoaded] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerSize, setContainerSize] = useState({ width: 300, height: 300 });
 
@@ -33,48 +39,90 @@ export default function CombinedPreview({ traits, onGifGenerated, onProcessingSt
     };
   }, []);
 
+  // Preload all images and track when they're loaded
   useEffect(() => {
-    onProcessingStateChange(false);
-    onGifGenerated(null);
-    setError(null);
+    const traitOrder: (keyof AvatarTraits)[] = [
+      'background', 'fur', 'face', 'eyes', 'mouth', 'head', 'mask', 'minion'
+    ];
     
     // Check if any traits are selected
     const hasTraits = Object.values(traits).some(trait => trait !== null);
     if (!hasTraits) {
+      setAllImagesLoaded(false);
+      setLoadedImages({});
+      onProcessingStateChange(false);
+      onGifGenerated(null);
+      setError(null);
       return;
     }
 
-    // For client-side preview, we'll just stack the images using HTML
-    if (containerRef.current) {
-      // Clear previous content but keep the fallback message container
-      const fallback = containerRef.current.querySelector('.no-traits-message');
-      containerRef.current.innerHTML = '';
-      if (fallback) {
-        containerRef.current.appendChild(fallback);
+    onProcessingStateChange(true);
+    setError(null);
+    
+    let loadedCount = 0;
+    const totalCount = Object.values(traits).filter(trait => trait !== null).length;
+    const newLoadedImages: LoadedImages = {};
+    
+    traitOrder.forEach(traitType => {
+      const trait = traits[traitType];
+      if (trait) {
+        const img = new Image();
+        img.src = trait.image;
+        img.alt = trait.name;
+        
+        img.onload = () => {
+          newLoadedImages[traitType] = img;
+          loadedCount++;
+          
+          if (loadedCount === totalCount) {
+            setLoadedImages(newLoadedImages);
+            setAllImagesLoaded(true);
+            onProcessingStateChange(false);
+          }
+        };
+        
+        img.onerror = () => {
+          console.error(`Failed to load image: ${trait.image}`);
+          loadedCount++;
+          
+          // Even if there's an error, we still need to check if all images are processed
+          if (loadedCount === totalCount) {
+            setLoadedImages(newLoadedImages);
+            setAllImagesLoaded(true);
+            onProcessingStateChange(false);
+          }
+        };
       }
-      
-      // Add each image layer in the correct z-order
-      const traitOrder: (keyof AvatarTraits)[] = [
-        'background', 'fur', 'face', 'eyes', 'mouth', 'head', 'mask', 'minion'
-      ];
-      
-      traitOrder.forEach(traitType => {
-        const trait = traits[traitType];
-        if (trait) {
-          const img = document.createElement('img');
-          img.src = trait.image;
-          img.alt = trait.name;
-          img.className = 'absolute top-0 left-0 w-full h-full object-contain';
-          img.onerror = () => {
-            console.error(`Failed to load image: ${trait.image}`);
-            img.style.display = 'none';
-          };
-          containerRef.current?.appendChild(img);
-        }
-      });
+    });
+  }, [traits, onGifGenerated, onProcessingStateChange]);
+
+  // Render the preview once all images are loaded
+  useEffect(() => {
+    if (!containerRef.current || !allImagesLoaded) return;
+    
+    // Clear previous content but keep the fallback message container
+    const fallback = containerRef.current.querySelector('.no-traits-message');
+    containerRef.current.innerHTML = '';
+    if (fallback) {
+      containerRef.current.appendChild(fallback);
     }
     
-  }, [traits, onGifGenerated, onProcessingStateChange]);
+    // Add each image layer in the correct z-order
+    const traitOrder: (keyof AvatarTraits)[] = [
+      'background', 'fur', 'face', 'eyes', 'mouth', 'head', 'mask', 'minion'
+    ];
+    
+    traitOrder.forEach(traitType => {
+      const trait = traits[traitType];
+      if (trait && loadedImages[traitType]) {
+        const img = document.createElement('img');
+        img.src = loadedImages[traitType].src;
+        img.alt = trait.name;
+        img.className = 'absolute top-0 left-0 w-full h-full object-contain';
+        containerRef.current?.appendChild(img);
+      }
+    });
+  }, [allImagesLoaded, loadedImages, traits]);
 
   return (
     <div className="relative">
