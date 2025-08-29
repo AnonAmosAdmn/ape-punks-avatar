@@ -2,7 +2,7 @@
 'use client';
 
 import { AvatarTraits } from '@/types';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 
 interface CombinedPreviewProps {
   traits: AvatarTraits;
@@ -10,8 +10,9 @@ interface CombinedPreviewProps {
   onProcessingStateChange: (isProcessing: boolean) => void;
 }
 
-interface LoadedImages {
-  [key: string]: HTMLImageElement;
+interface LoadedImage {
+  element: HTMLImageElement;
+  type: keyof AvatarTraits;
 }
 
 export default function CombinedPreview({
@@ -20,11 +21,12 @@ export default function CombinedPreview({
   onProcessingStateChange,
 }: CombinedPreviewProps) {
   const [error, setError] = useState<string | null>(null);
-  const [loadedImages, setLoadedImages] = useState<LoadedImages>({});
+  const [loadedImages, setLoadedImages] = useState<LoadedImage[]>([]);
   const [allImagesLoaded, setAllImagesLoaded] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerSize, setContainerSize] = useState({ width: 300, height: 300 });
   const [gifSyncKey, setGifSyncKey] = useState(0);
+  const imageRefs = useRef<Map<string, HTMLImageElement>>(new Map());
 
   // Update container size based on window size
   useEffect(() => {
@@ -47,9 +49,35 @@ export default function CombinedPreview({
   // Reset sync when traits change
   useEffect(() => {
     setGifSyncKey((prev) => prev + 1);
+    setLoadedImages([]);
+    setAllImagesLoaded(false);
   }, [traits]);
 
-  // Preload all images and track when they're loaded
+  // Check if all selected traits have loaded images
+  useEffect(() => {
+    const selectedTraits = Object.entries(traits)
+      .filter(([_, value]) => value !== null)
+      .map(([key]) => key as keyof AvatarTraits);
+
+    if (selectedTraits.length === 0) {
+      setAllImagesLoaded(false);
+      onProcessingStateChange(false);
+      onGifGenerated(null);
+      setError(null);
+      return;
+    }
+
+    const allLoaded = selectedTraits.every(traitType => 
+      loadedImages.some(img => img.type === traitType)
+    );
+
+    if (allLoaded && selectedTraits.length > 0) {
+      setAllImagesLoaded(true);
+      onProcessingStateChange(false);
+    }
+  }, [loadedImages, traits, onProcessingStateChange, onGifGenerated]);
+
+  // Load images when traits change
   useEffect(() => {
     const traitOrder: (keyof AvatarTraits)[] = [
       'background',
@@ -64,71 +92,47 @@ export default function CombinedPreview({
     // Check if any traits are selected
     const hasTraits = Object.values(traits).some((trait) => trait !== null);
     if (!hasTraits) {
-      setAllImagesLoaded(false);
-      setLoadedImages({});
-      onProcessingStateChange(false);
-      onGifGenerated(null);
-      setError(null);
       return;
     }
 
     onProcessingStateChange(true);
     setError(null);
 
-    let loadedCount = 0;
-    const totalCount = Object.values(traits).filter((trait) => trait !== null).length;
-    const newLoadedImages: LoadedImages = {};
+    // Clear previous images
+    setLoadedImages([]);
+    imageRefs.current.clear();
 
     traitOrder.forEach((traitType) => {
       const trait = traits[traitType];
       if (trait) {
-        // Add sync parameter to GIF URLs
-        const imageUrl = trait.image.endsWith('.gif')
+        const img = new Image();
+        const isGif = trait.image.endsWith('.gif');
+        const imageUrl = isGif
           ? `${trait.image}?sync=${gifSyncKey}`
           : trait.image;
 
-        const img = new Image();
         img.src = imageUrl;
         img.alt = trait.name;
+        
+        // Store reference for later use
+        imageRefs.current.set(traitType, img);
 
         img.onload = () => {
-          newLoadedImages[traitType] = img;
-          loadedCount++;
-
-          if (loadedCount === totalCount) {
-            setLoadedImages(newLoadedImages);
-            setAllImagesLoaded(true);
-            onProcessingStateChange(false);
-          }
+          setLoadedImages(prev => [...prev, { element: img, type: traitType }]);
         };
 
         img.onerror = () => {
           console.error(`Failed to load image: ${trait.image}`);
-          loadedCount++;
-
-          if (loadedCount === totalCount) {
-            setLoadedImages(newLoadedImages);
-            setAllImagesLoaded(true);
-            onProcessingStateChange(false);
-          }
+          setError(`Failed to load ${traitType} image`);
+          onProcessingStateChange(false);
         };
       }
     });
-  }, [traits, onGifGenerated, onProcessingStateChange, gifSyncKey]);
+  }, [traits, onProcessingStateChange, gifSyncKey]);
 
-  // Render the preview once all images are loaded
-  useEffect(() => {
-    if (!containerRef.current || !allImagesLoaded) return;
-
-    // Clear previous content but keep the fallback message container
-    const fallback = containerRef.current.querySelector('.no-traits-message');
-    containerRef.current.innerHTML = '';
-    if (fallback) {
-      containerRef.current.appendChild(fallback);
-    }
-
-    // Add each image layer in the correct z-order
-    const traitOrder: (keyof AvatarTraits)[] = [
+  // Get the z-index for proper layering
+  const getZIndex = useCallback((traitType: keyof AvatarTraits): number => {
+    const order: (keyof AvatarTraits)[] = [
       'background',
       'fur',
       'mouth',
@@ -137,35 +141,8 @@ export default function CombinedPreview({
       'eyes',
       'minion',
     ];
-
-    // Collect all <img> elements first
-    const imgs: HTMLImageElement[] = [];
-
-    traitOrder.forEach((traitType) => {
-      const trait = traits[traitType];
-      if (trait && loadedImages[traitType]) {
-        const img = document.createElement('img');
-
-        const isGif = trait.image.endsWith('.gif');
-        const src = isGif
-          ? `${trait.image}?sync=${gifSyncKey}&t=${Date.now()}`
-          : trait.image;
-
-        img.src = src;
-        img.alt = trait.name;
-        img.className = 'absolute top-0 left-0 w-full h-full object-contain';
-
-        imgs.push(img);
-      }
-    });
-
-    // Append them all at once *after a small delay* for better sync
-    const timeout = setTimeout(() => {
-      imgs.forEach((img) => containerRef.current?.appendChild(img));
-    }, 100); // 100ms delay
-
-    return () => clearTimeout(timeout);
-  }, [allImagesLoaded, loadedImages, traits, gifSyncKey]);
+    return order.indexOf(traitType);
+  }, []);
 
   return (
     <div className="relative">
@@ -178,10 +155,31 @@ export default function CombinedPreview({
           maxWidth: '100%',
         }}
       >
-        {Object.values(traits).every((trait) => trait === null) && (
+        {Object.values(traits).every((trait) => trait === null) ? (
           <div className="no-traits-message flex items-center justify-center h-full text-gray-500 text-center p-4">
             Select traits to build your avatar
           </div>
+        ) : (
+          // Render images using React's declarative approach
+          Array.from(imageRefs.current.entries()).map(([traitType, img]) => {
+            const trait = traits[traitType as keyof AvatarTraits];
+            if (!trait) return null;
+            
+            const isGif = trait.image.endsWith('.gif');
+            const src = isGif
+              ? `${trait.image}?sync=${gifSyncKey}&t=${Date.now()}`
+              : trait.image;
+
+            return (
+              <img
+                key={traitType}
+                src={src}
+                alt={trait.name}
+                className="absolute top-0 left-0 w-full h-full object-contain"
+                style={{ zIndex: getZIndex(traitType as keyof AvatarTraits) }}
+              />
+            );
+          })
         )}
       </div>
       {error && (
