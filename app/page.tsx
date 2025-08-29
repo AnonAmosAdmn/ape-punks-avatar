@@ -14,11 +14,6 @@ const traitOptions: Record<TraitType, Trait[]> = {
     { name: 'Blue Sky', value: 'blue-sky', image: '/assets/background/1.gif' },
     { name: 'Space', value: 'space', image: '/assets/background/2.gif' },
   ],
-  eyes: [
-    { name: 'None', value: 'none', image: '/assets/transparent.gif' },
-    { name: 'Normal', value: 'normal', image: '/assets/eyes/14.gif' },
-    { name: 'Laser', value: 'laser', image: '/assets/eyes/15.gif' },
-  ],
   fur: [
     { name: 'None', value: 'none', image: '/assets/transparent.gif' },
     { name: 'Brown', value: 'brown', image: '/assets/fur/4.gif' },
@@ -34,6 +29,11 @@ const traitOptions: Record<TraitType, Trait[]> = {
     { name: 'Surgical', value: 'surgical', image: '/assets/mask/8.gif' },
     { name: 'Gas', value: 'gas', image: '/assets/mask/9.gif' },
   ],
+  eyes: [
+    { name: 'None', value: 'none', image: '/assets/transparent.gif' },
+    { name: 'Normal', value: 'normal', image: '/assets/eyes/14.gif' },
+    { name: 'Laser', value: 'laser', image: '/assets/eyes/15.gif' },
+  ],
   minion: [
     { name: 'None', value: 'none', image: '/assets/transparent.gif' },
     { name: 'Frog', value: 'frog', image: '/assets/minion/10.gif' },
@@ -48,11 +48,11 @@ const traitOptions: Record<TraitType, Trait[]> = {
 
 const initialTraits: AvatarTraits = {
   background: null,
-  eyes: null,
   fur: null,
   head: null,
   mask: null,
   minion: null,
+  eyes: null,
   mouth: null,
 };
 
