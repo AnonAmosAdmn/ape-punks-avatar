@@ -19,10 +19,6 @@ const traitOptions: Record<TraitType, Trait[]> = {
     { name: 'Normal', value: 'normal', image: '/assets/eyes/14.gif' },
     { name: 'Laser', value: 'laser', image: '/assets/eyes/15.gif' },
   ],
-  face: [
-    { name: 'None', value: 'none', image: '/assets/transparent.gif' },
-    { name: 'Round', value: 'round', image: '/assets/face/3.gif' },
-  ],
   fur: [
     { name: 'None', value: 'none', image: '/assets/transparent.gif' },
     { name: 'Brown', value: 'brown', image: '/assets/fur/4.gif' },

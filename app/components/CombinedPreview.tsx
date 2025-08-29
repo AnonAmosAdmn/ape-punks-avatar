@@ -120,7 +120,7 @@ export default function CombinedPreview({ traits, onGifGenerated, onProcessingSt
     
     // Add each image layer in the correct z-order
     const traitOrder: (keyof AvatarTraits)[] = [
-      'background', 'fur', 'face', 'eyes', 'mouth', 'head', 'mask', 'minion'
+      'background', 'fur', 'eyes', 'mouth', 'head', 'mask', 'minion'
     ];
     
     traitOrder.forEach(traitType => {
