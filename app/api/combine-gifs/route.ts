@@ -87,9 +87,9 @@ function getAbsoluteUrl(relativeUrl: string): string {
     return relativeUrl;
   }
   
-  let baseUrl = process.env.NEXTAUTH_URL;
-  if (!baseUrl && process.env.VERCEL_URL) baseUrl = `https://${process.env.VERCEL_URL}`;
-  if (!baseUrl) baseUrl = 'http://localhost:3000';
+  let baseUrl = 'ape-punks-avatar.vercel.app';
+  if (!baseUrl && process.env.VERCEL_URL) baseUrl = `ape-punks-avatar.vercel.app`;
+  if (!baseUrl) baseUrl = 'ape-punks-avatar.vercel.app';
   
   baseUrl = baseUrl.replace(/\/$/, '');
   relativeUrl = relativeUrl.replace(/^\//, '');
