@@ -20,7 +20,7 @@ export default function CombinedPreview({ traits, onGifGenerated, onProcessingSt
   const [allImagesLoaded, setAllImagesLoaded] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerSize, setContainerSize] = useState({ width: 300, height: 300 });
-  const gifSyncRef = useRef<number>(0); // Counter to force GIF synchronization
+  const [gifSyncKey, setGifSyncKey] = useState(0);
 
   // Update container size based on window size
   useEffect(() => {
@@ -39,6 +39,11 @@ export default function CombinedPreview({ traits, onGifGenerated, onProcessingSt
       window.removeEventListener('resize', updateSize);
     };
   }, []);
+
+  // Reset sync when traits change
+  useEffect(() => {
+    setGifSyncKey(prev => prev + 1);
+  }, [traits]);
 
   // Preload all images and track when they're loaded
   useEffect(() => {
@@ -67,8 +72,13 @@ export default function CombinedPreview({ traits, onGifGenerated, onProcessingSt
     traitOrder.forEach(traitType => {
       const trait = traits[traitType];
       if (trait) {
+        // Add sync parameter to GIF URLs
+        const imageUrl = trait.image.endsWith('.gif') 
+          ? `${trait.image}?sync=${gifSyncKey}` 
+          : trait.image;
+          
         const img = new Image();
-        img.src = trait.image;
+        img.src = imageUrl;
         img.alt = trait.name;
         
         img.onload = () => {
@@ -79,9 +89,6 @@ export default function CombinedPreview({ traits, onGifGenerated, onProcessingSt
             setLoadedImages(newLoadedImages);
             setAllImagesLoaded(true);
             onProcessingStateChange(false);
-            
-            // Increment sync counter to force GIF reload
-            gifSyncRef.current += 1;
           }
         };
         
@@ -89,16 +96,16 @@ export default function CombinedPreview({ traits, onGifGenerated, onProcessingSt
           console.error(`Failed to load image: ${trait.image}`);
           loadedCount++;
           
+          // Even if there's an error, we still need to check if all images are processed
           if (loadedCount === totalCount) {
             setLoadedImages(newLoadedImages);
             setAllImagesLoaded(true);
             onProcessingStateChange(false);
-            gifSyncRef.current += 1;
           }
         };
       }
     });
-  }, [traits, onGifGenerated, onProcessingStateChange]);
+  }, [traits, onGifGenerated, onProcessingStateChange, gifSyncKey]);
 
   // Render the preview once all images are loaded
   useEffect(() => {
@@ -121,25 +128,20 @@ export default function CombinedPreview({ traits, onGifGenerated, onProcessingSt
       if (trait && loadedImages[traitType]) {
         const img = document.createElement('img');
         
-        // Add sync parameter to GIF URLs to force them to load at the same time
+        // Add sync parameter to GIF URLs
         const isGif = trait.image.endsWith('.gif');
-        let src = trait.image;
-        if (isGif) {
-          // Add a cache-busting parameter to force reload and synchronization
-          src = `${trait.image}?sync=${gifSyncRef.current}&t=${Date.now()}`;
-        }
-        
+        const src = isGif 
+          ? `${trait.image}?sync=${gifSyncKey}&t=${Date.now()}` 
+          : trait.image;
+          
         img.src = src;
         img.alt = trait.name;
         img.className = 'absolute top-0 left-0 w-full h-full object-contain';
         
-        // Force GIFs to load at the same time by setting decoding to async
-        img.decoding = 'async';
-        
         containerRef.current?.appendChild(img);
       }
     });
-  }, [allImagesLoaded, loadedImages, traits, gifSyncRef.current]); // Add gifSyncRef.current as dependency
+  }, [allImagesLoaded, loadedImages, traits, gifSyncKey]);
 
   return (
     <div className="relative">
