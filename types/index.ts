@@ -8,7 +8,6 @@ export interface Trait {
 export interface AvatarTraits {
   background: Trait | null;
   eyes: Trait | null;
-  face: Trait | null;
   fur: Trait | null;
   head: Trait | null;
   mask: Trait | null;

@@ -49,7 +49,6 @@ const traitOptions: Record<TraitType, Trait[]> = {
 const initialTraits: AvatarTraits = {
   background: null,
   eyes: null,
-  face: null,
   fur: null,
   head: null,
   mask: null,
