@@ -78,7 +78,7 @@ export default function Home() {
 
   return (
     <main className="min-h-screen p-8 bg-gradient-to-b from-purple-900 to-indigo-900 text-white">
-      <h1 className="text-4xl font-bold text-center mb-2">NFT Avatar Creator</h1>
+      <h1 className="text-4xl font-bold text-center mb-2">APE PUNKS Avatar Creator</h1>
       <p className="text-center text-indigo-200 mb-8">Create your unique NFT avatar with animated traits</p>
       
       <div className="flex flex-col lg:flex-row gap-8 max-w-6xl mx-auto">
