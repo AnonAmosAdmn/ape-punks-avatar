@@ -3,6 +3,7 @@
 
 import { Trait, TraitType } from '@/types';
 import { useEffect, useRef, useState } from 'react';
+import Image from 'next/image';
 
 interface TraitSelectorProps {
   traitType: TraitType;
@@ -64,7 +65,7 @@ export default function TraitSelector({ traitType, traits, selectedTrait, onSele
               }}
             >
               <div className="relative">
-                <img
+                <Image
                   ref={(el) => {
                     if (el) {
                       imageRefs.current.set(trait.value, el);
@@ -74,7 +75,10 @@ export default function TraitSelector({ traitType, traits, selectedTrait, onSele
                   }}
                   src={imageUrl}
                   alt={trait.name}
-                  className="w-12 h-12 object-contain rounded md:w-16 md:h-16"
+                  width={48}
+                  height={48}
+                  className="object-contain rounded md:w-16 md:h-16"
+                  unoptimized={true} // Add this for GIFs
                   onLoad={() => {
                     // When a GIF loads, reload all to sync them
                     if (isGif) {
