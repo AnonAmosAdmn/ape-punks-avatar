@@ -12,40 +12,40 @@ import SelectedTraitsList from './components/SelectedTraitsList';
 const traitOptions: Record<TraitType, Trait[]> = {
   background: [
     { name: 'None', value: 'none', image: '/assets/transparent.gif' },
-    { name: 'Blue Sky', value: 'blue-sky', image: '/assets/background/1.gif' },
-    { name: 'Space', value: 'space', image: '/assets/background/2.gif' },
+    { name: 'Purple Sky', value: 'purple-sky', image: '/assets/background/1.gif' },
+    { name: 'Lava Rock', value: 'lava-rock', image: '/assets/background/2.gif' },
     { name: 'Rocket', value: 'rocket', image: '/assets/background/16.gif' },
   ],
   fur: [
     { name: 'None', value: 'none', image: '/assets/transparent.gif' },
     { name: 'Brown', value: 'brown', image: '/assets/fur/4.gif' },
-    { name: 'White', value: 'white', image: '/assets/fur/5.gif' },
+    { name: 'Cyan', value: 'cyan', image: '/assets/fur/5.gif' },
   ],
   head: [
     { name: 'None', value: 'none', image: '/assets/transparent.gif' },
     { name: 'Cap', value: 'cap', image: '/assets/head/6.gif' },
-    { name: 'Crown', value: 'crown', image: '/assets/head/7.gif' },
+    { name: 'Bandana', value: 'bandana', image: '/assets/head/7.gif' },
   ],
   mask: [
     { name: 'None', value: 'none', image: '/assets/transparent.gif' },
-    { name: 'Surgical', value: 'surgical', image: '/assets/mask/8.gif' },
-    { name: 'Gas', value: 'gas', image: '/assets/mask/9.gif' },
+    { name: 'Zombie', value: 'zombie', image: '/assets/mask/8.gif' },
+    { name: 'Mime', value: 'mime', image: '/assets/mask/9.gif' },
   ],
   eyes: [
     { name: 'None', value: 'none', image: '/assets/transparent.gif' },
-    { name: 'Normal', value: 'normal', image: '/assets/eyes/14.gif' },
-    { name: 'Laser', value: 'laser', image: '/assets/eyes/15.gif' },
-    { name: 'Gm', value: 'Gm', image: '/assets/eyes/17.gif' },
+    { name: 'Laser', value: 'laser', image: '/assets/eyes/14.gif' },
+    { name: 'Gmonad', value: 'Gmonad', image: '/assets/eyes/15.gif' },
+    { name: 'Gm Silver', value: 'Gm-silver', image: '/assets/eyes/17.gif' },
   ],
   minion: [
     { name: 'None', value: 'none', image: '/assets/transparent.gif' },
-    { name: 'Frog', value: 'frog', image: '/assets/minion/10.gif' },
-    { name: 'Robot', value: 'robot', image: '/assets/minion/11.gif' },
+    { name: 'Purple', value: 'purple', image: '/assets/minion/10.gif' },
+    { name: 'Gold', value: 'gold', image: '/assets/minion/11.gif' },
   ],
   mouth: [
     { name: 'None', value: 'none', image: '/assets/transparent.gif' },
-    { name: 'Smile', value: 'smile', image: '/assets/mouth/12.gif' },
-    { name: 'Open', value: 'open', image: '/assets/mouth/13.gif' },
+    { name: 'Open', value: 'open', image: '/assets/mouth/12.gif' },
+    { name: 'Smile', value: 'smile', image: '/assets/mouth/13.gif' },
   ],
 };
 
