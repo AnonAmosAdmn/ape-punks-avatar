@@ -26,6 +26,7 @@ export default function CombinedPreview({
   const [containerSize, setContainerSize] = useState({ width: 300, height: 300 });
   const [gifSyncKey, setGifSyncKey] = useState(0);
   const imageRefs = useRef<Map<string, HTMLImageElement>>(new Map());
+  const syncTimestampRef = useRef<number>(Date.now());
 
   // Update container size based on window size
   useEffect(() => {
@@ -47,6 +48,8 @@ export default function CombinedPreview({
 
   // Reset sync when traits change
   useEffect(() => {
+    const newTimestamp = Date.now();
+    syncTimestampRef.current = newTimestamp;
     setGifSyncKey((prev) => prev + 1);
     setLoadedImages([]);
   }, [traits]);
@@ -98,32 +101,50 @@ export default function CombinedPreview({
     setLoadedImages([]);
     imageRefs.current.clear();
 
+    // Create a promise for each image load
+    const loadPromises: Promise<LoadedImage>[] = [];
+
     traitOrder.forEach((traitType) => {
       const trait = traits[traitType];
       if (trait) {
-        const img = new Image();
-        const isGif = trait.image.endsWith('.gif');
-        const imageUrl = isGif
-          ? `${trait.image}?sync=${gifSyncKey}`
-          : trait.image;
+        const loadPromise = new Promise<LoadedImage>((resolve, reject) => {
+          const img = new Image();
+          const isGif = trait.image.endsWith('.gif');
+          
+          // Use the same timestamp for all GIFs to ensure synchronization
+          const imageUrl = isGif
+            ? `${trait.image}?sync=${syncTimestampRef.current}`
+            : trait.image;
 
-        img.src = imageUrl;
-        img.alt = trait.name;
+          img.src = imageUrl;
+          img.alt = trait.name;
+          
+          // Store reference for later use
+          imageRefs.current.set(traitType, img);
+
+          img.onload = () => {
+            resolve({ element: img, type: traitType });
+          };
+
+          img.onerror = () => {
+            console.error(`Failed to load image: ${trait.image}`);
+            reject(new Error(`Failed to load ${traitType} image`));
+          };
+        });
         
-        // Store reference for later use
-        imageRefs.current.set(traitType, img);
-
-        img.onload = () => {
-          setLoadedImages(prev => [...prev, { element: img, type: traitType }]);
-        };
-
-        img.onerror = () => {
-          console.error(`Failed to load image: ${trait.image}`);
-          setError(`Failed to load ${traitType} image`);
-          onProcessingStateChange(false);
-        };
+        loadPromises.push(loadPromise);
       }
     });
+
+    // Wait for all images to load
+    Promise.all(loadPromises)
+      .then((images) => {
+        setLoadedImages(images);
+      })
+      .catch((error) => {
+        setError(error.message);
+        onProcessingStateChange(false);
+      });
   }, [traits, onProcessingStateChange, gifSyncKey]);
 
   // Get the z-index for proper layering
@@ -162,8 +183,9 @@ export default function CombinedPreview({
             if (!trait) return null;
             
             const isGif = trait.image.endsWith('.gif');
+            // Use the same sync timestamp for all GIFs
             const src = isGif
-              ? `${trait.image}?sync=${gifSyncKey}&t=${Date.now()}`
+              ? `${trait.image}?sync=${syncTimestampRef.current}`
               : trait.image;
 
             return (
