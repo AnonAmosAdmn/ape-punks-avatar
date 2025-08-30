@@ -4,6 +4,7 @@
 import { AvatarTraits } from '@/types';
 import { useEffect, useState, useRef, useCallback } from 'react';
 
+
 interface CombinedPreviewProps {
   traits: AvatarTraits;
   onGifGenerated: (url: string | null) => void;
