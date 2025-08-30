@@ -13,6 +13,7 @@ const traitOptions: Record<TraitType, Trait[]> = {
     { name: 'None', value: 'none', image: '/assets/transparent.gif' },
     { name: 'Blue Sky', value: 'blue-sky', image: '/assets/background/1.gif' },
     { name: 'Space', value: 'space', image: '/assets/background/2.gif' },
+    { name: 'Rocket', value: 'rocket', image: '/assets/background/16.gif' },
   ],
   fur: [
     { name: 'None', value: 'none', image: '/assets/transparent.gif' },
@@ -33,6 +34,7 @@ const traitOptions: Record<TraitType, Trait[]> = {
     { name: 'None', value: 'none', image: '/assets/transparent.gif' },
     { name: 'Normal', value: 'normal', image: '/assets/eyes/14.gif' },
     { name: 'Laser', value: 'laser', image: '/assets/eyes/15.gif' },
+    { name: 'Gm', value: 'Gm', image: '/assets/eyes/17.gif' },
   ],
   minion: [
     { name: 'None', value: 'none', image: '/assets/transparent.gif' },
