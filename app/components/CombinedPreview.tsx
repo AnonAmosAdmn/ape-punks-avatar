@@ -1,8 +1,13 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 // app/components/CombinedPreview.tsx
 'use client';
 
 import { AvatarTraits } from '@/types';
 import { useEffect, useState, useRef, useCallback } from 'react';
+
+// Import the omggif library
+import { GifReader } from 'omggif';
 
 interface CombinedPreviewProps {
   traits: AvatarTraits;
@@ -10,10 +15,19 @@ interface CombinedPreviewProps {
   onProcessingStateChange: (isProcessing: boolean) => void;
 }
 
-interface LoadedImage {
-  element: HTMLImageElement;
+interface ProcessedGif {
   type: keyof AvatarTraits;
-  isGif: boolean;
+  frames: ImageData[];
+  delays: number[];
+  width: number;
+  height: number;
+  currentFrame: number;
+  lastUpdate: number;
+}
+
+interface StaticImage {
+  type: keyof AvatarTraits;
+  element: HTMLImageElement;
 }
 
 export default function CombinedPreview({
@@ -22,16 +36,13 @@ export default function CombinedPreview({
   onProcessingStateChange,
 }: CombinedPreviewProps) {
   const [error, setError] = useState<string | null>(null);
-  const [loadedImages, setLoadedImages] = useState<LoadedImage[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerSize, setContainerSize] = useState({ width: 300, height: 300 });
-  const [renderKey, setRenderKey] = useState(0);
-  const imageRefs = useRef<Map<string, HTMLImageElement>>(new Map());
-  const syncTimestampRef = useRef<number>(Date.now());
-  const hasGifsRef = useRef<boolean>(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationFrameRef = useRef<number>(0);
-  const gifElementsRef = useRef<Map<string, HTMLImageElement>>(new Map());
+  const gifDataRef = useRef<ProcessedGif[]>([]);
+  const staticImagesRef = useRef<StaticImage[]>([]);
+  const lastFrameTimeRef = useRef<number>(0);
 
   // Update container size based on window size
   useEffect(() => {
@@ -52,115 +63,151 @@ export default function CombinedPreview({
     };
   }, []);
 
-  // Reset sync when traits change
+  // Process traits when they change
   useEffect(() => {
-    const newTimestamp = Date.now();
-    syncTimestampRef.current = newTimestamp;
-    setRenderKey(prev => prev + 1);
-    setLoadedImages([]);
-    hasGifsRef.current = false;
-    cancelAnimationFrame(animationFrameRef.current);
-    gifElementsRef.current.clear();
-  }, [traits]);
-
-  // Check if all selected traits have loaded images
-  useEffect(() => {
-    const selectedTraits = Object.entries(traits)
-      .filter(([_, value]) => value !== null)
-      .map(([key]) => key as keyof AvatarTraits);
-
-    if (selectedTraits.length === 0) {
-      onProcessingStateChange(false);
-      onGifGenerated(null);
+    const processTraits = async () => {
+      onProcessingStateChange(true);
       setError(null);
-      return;
-    }
+      
+      // Clear previous data
+      gifDataRef.current = [];
+      staticImagesRef.current = [];
+      cancelAnimationFrame(animationFrameRef.current);
+      
+      const traitOrder: (keyof AvatarTraits)[] = [
+        'background',
+        'fur',
+        'mouth',
+        'head',
+        'mask',
+        'eyes',
+        'minion',
+      ];
 
-    const allLoaded = selectedTraits.every(traitType => 
-      loadedImages.some(img => img.type === traitType)
-    );
-
-    if (allLoaded && selectedTraits.length > 0) {
-      onProcessingStateChange(false);
-    }
-  }, [loadedImages, traits, onProcessingStateChange, onGifGenerated]);
-
-  // Load images when traits change
-  useEffect(() => {
-    const traitOrder: (keyof AvatarTraits)[] = [
-      'background',
-      'fur',
-      'mouth',
-      'head',
-      'mask',
-      'eyes',
-      'minion',
-    ];
-
-    // Check if any traits are selected
-    const hasTraits = Object.values(traits).some((trait) => trait !== null);
-    if (!hasTraits) {
-      return;
-    }
-
-    onProcessingStateChange(true);
-    setError(null);
-
-    // Clear previous images
-    setLoadedImages([]);
-    imageRefs.current.clear();
-    gifElementsRef.current.clear();
-
-    // Check if we have any GIFs
-    hasGifsRef.current = Object.values(traits).some(
-      trait => trait !== null && trait.image.endsWith('.gif')
-    );
-
-    // Create a promise for each image load
-    const loadPromises: Promise<LoadedImage>[] = [];
-
-    traitOrder.forEach((traitType) => {
-      const trait = traits[traitType];
-      if (trait) {
-        const loadPromise = new Promise<LoadedImage>((resolve, reject) => {
-          const img = new Image();
-          const isGif = trait.image.endsWith('.gif');
-          
-          // Use the same timestamp for all GIFs to ensure synchronization
-          const imageUrl = isGif
-            ? `${trait.image}?sync=${syncTimestampRef.current}`
-            : trait.image;
-
-          img.src = imageUrl;
-          img.alt = trait.name;
-          
-          // Store reference for later use
-          imageRefs.current.set(traitType, img);
-
-          img.onload = () => {
-            resolve({ element: img, type: traitType, isGif });
-          };
-
-          img.onerror = () => {
-            console.error(`Failed to load image: ${trait.image}`);
-            reject(new Error(`Failed to load ${traitType} image`));
-          };
-        });
-        
-        loadPromises.push(loadPromise);
-      }
-    });
-
-    // Wait for all images to load
-    Promise.all(loadPromises)
-      .then((images) => {
-        setLoadedImages(images);
-      })
-      .catch((error) => {
-        setError(error.message);
+      // Check if any traits are selected
+      const hasTraits = Object.values(traits).some((trait) => trait !== null);
+      if (!hasTraits) {
         onProcessingStateChange(false);
+        return;
+      }
+
+      try {
+        // Process each trait
+        for (const traitType of traitOrder) {
+          const trait = traits[traitType];
+          if (!trait) continue;
+
+          if (trait.image.endsWith('.gif')) {
+            // Process GIF trait using omggif
+            await processGifTrait(traitType, trait.image);
+          } else {
+            // Process static image trait
+            await processStaticTrait(traitType, trait.image);
+          }
+        }
+
+        // Start animation if we have GIFs
+        if (gifDataRef.current.length > 0) {
+          lastFrameTimeRef.current = performance.now();
+          requestAnimationFrame(drawFrame);
+        } else {
+          // Just draw static images
+          drawStaticImages();
+          onProcessingStateChange(false);
+        }
+      } catch (error) {
+        console.error('Error processing traits:', error);
+        setError('Failed to load avatar traits');
+        onProcessingStateChange(false);
+      }
+    };
+
+    processTraits();
+  }, [traits, onProcessingStateChange]);
+
+  // Process a GIF trait using omggif (similar to API route)
+  const processGifTrait = async (type: keyof AvatarTraits, url: string) => {
+    try {
+      // Fetch the GIF data
+      const response = await fetch(url);
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = new Uint8Array(arrayBuffer);
+      
+      // Parse the GIF using omggif
+      const reader = new GifReader(buffer);
+      const width = reader.width;
+      const height = reader.height;
+      
+      // Extract all frames using the same method as API route
+      const frames: ImageData[] = [];
+      const delays: number[] = [];
+      
+      for (let f = 0; f < reader.numFrames(); f++) {
+        // Create RGBA buffer for the frame
+        const imageData = new Uint8ClampedArray(width * height * 4);
+        
+        // Use the appropriate decoding method (same as API route)
+        if (typeof (reader as any).decodeAndBlitFrameRGBA === 'function') {
+          (reader as any).decodeAndBlitFrameRGBA(f, imageData);
+        } else if (typeof (reader as any).decodeAndBlitFrameBGRA === 'function') {
+          const bgraData = new Uint8Array(width * height * 4);
+          (reader as any).decodeAndBlitFrameBGRA(f, bgraData);
+          
+          // Convert BGRA to RGBA (same as API route)
+          for (let i = 0; i < bgraData.length; i += 4) {
+            imageData[i] = bgraData[i + 2];     // R
+            imageData[i + 1] = bgraData[i + 1]; // G
+            imageData[i + 2] = bgraData[i];     // B
+            imageData[i + 3] = bgraData[i + 3]; // A
+          }
+        }
+        
+        // Get frame info and delay (same as API route)
+        const frameInfo = (reader as any).frameInfo(f);
+        const delayMs = (typeof frameInfo.delay === 'number' ? frameInfo.delay : 10) * 10;
+        
+        // Create ImageData object for the frame
+        const frameImageData = new ImageData(
+          new Uint8ClampedArray(imageData.buffer),
+          width,
+          height
+        );
+        
+        frames.push(frameImageData);
+        delays.push(delayMs);
+      }
+      
+      // Add to GIF data
+      gifDataRef.current.push({
+        type,
+        frames,
+        delays,
+        width,
+        height,
+        currentFrame: 0,
+        lastUpdate: 0
       });
-  }, [traits, onProcessingStateChange, renderKey]);
+    } catch (error) {
+      console.error(`Error processing GIF for ${type}:`, error);
+      throw new Error(`Failed to process ${type} GIF`);
+    }
+  };
+
+  // Process a static image trait
+  const processStaticTrait = (type: keyof AvatarTraits, url: string): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.src = url;
+      img.onload = () => {
+        staticImagesRef.current.push({ type, element: img });
+        resolve();
+      };
+      img.onerror = () => {
+        reject(new Error(`Failed to load ${type} image`));
+      };
+    });
+  };
 
   // Get the z-index for proper layering
   const getZIndex = useCallback((traitType: keyof AvatarTraits): number => {
@@ -176,8 +223,83 @@ export default function CombinedPreview({
     return order.indexOf(traitType);
   }, []);
 
-  // Check if we have GIFs
-  const hasGifs = loadedImages.some(img => img.isGif);
+  // Draw a single frame with proper synchronization
+  const drawFrame = (timestamp: number) => {
+    const canvas = canvasRef.current;
+    if (!canvas || gifDataRef.current.length === 0) return;
+    
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    // Clear canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Draw static images first (background layers)
+    drawStaticImages(ctx);
+    
+    // Update and draw GIFs with proper timing
+    let needsNextFrame = false;
+    const currentTime = performance.now();
+    
+    // Sort GIFs by z-index for proper layering
+    const sortedGifs = [...gifDataRef.current].sort((a, b) => 
+      getZIndex(a.type) - getZIndex(b.type)
+    );
+    
+    for (const gif of sortedGifs) {
+      // Check if it's time to advance the frame
+      const timeSinceLastUpdate = currentTime - gif.lastUpdate;
+      
+      if (timeSinceLastUpdate >= gif.delays[gif.currentFrame]) {
+        gif.currentFrame = (gif.currentFrame + 1) % gif.frames.length;
+        gif.lastUpdate = currentTime;
+        needsNextFrame = true;
+      }
+      
+      // Draw the current frame
+      const frameData = gif.frames[gif.currentFrame];
+      
+      // Create a temporary canvas for this GIF frame
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = gif.width;
+      tempCanvas.height = gif.height;
+      const tempCtx = tempCanvas.getContext('2d');
+      
+      if (tempCtx) {
+        tempCtx.putImageData(frameData, 0, 0);
+        
+        // Draw the frame onto the main canvas, scaled to container size
+        ctx.drawImage(
+          tempCanvas, 
+          0, 0, gif.width, gif.height,
+          0, 0, containerSize.width, containerSize.height
+        );
+      }
+    }
+    
+    // Continue animation
+    animationFrameRef.current = requestAnimationFrame(drawFrame);
+  };
+
+  // Draw static images
+  const drawStaticImages = (ctx?: CanvasRenderingContext2D | null) => {
+    if (!ctx) {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      ctx = canvas.getContext('2d');
+      if (!ctx) return;
+    }
+    
+    // Sort by z-index
+    const sortedImages = [...staticImagesRef.current].sort((a, b) => 
+      getZIndex(a.type) - getZIndex(b.type)
+    );
+    
+    // Draw each static image
+    for (const { element } of sortedImages) {
+      ctx.drawImage(element, 0, 0, containerSize.width, containerSize.height);
+    }
+  };
 
   return (
     <div className="relative">
@@ -195,40 +317,17 @@ export default function CombinedPreview({
             Select traits to build your avatar
           </div>
         ) : (
-          // Render all images with proper layering
-          loadedImages.map(({ type, isGif }) => {
-            const trait = traits[type];
-            if (!trait) return null;
-            
-            // For GIFs, use a unique key with timestamp to force reload and synchronization
-            const src = isGif
-              ? `${trait.image}?sync=${syncTimestampRef.current}&key=${renderKey}`
-              : trait.image;
-
-            return (
-              <img
-                key={`${type}-${renderKey}`}
-                src={src}
-                alt={trait.name}
-                className="absolute top-0 left-0 w-full h-full object-contain"
-                style={{ zIndex: getZIndex(type) }}
-                onLoad={() => {
-                  // Store reference to GIF elements for potential manual control
-                  if (isGif) {
-                    gifElementsRef.current.set(type, document.querySelector(`img[src="${src}"]`) as HTMLImageElement);
-                  }
-                }}
-              />
-            );
-          })
+          <canvas
+            ref={canvasRef}
+            width={containerSize.width}
+            height={containerSize.height}
+            className="w-full h-full"
+          />
         )}
       </div>
       {error && (
         <div className="mt-2 text-sm text-center text-red-400">{error}</div>
       )}
-      
-      {/* Hidden canvas for potential future use */}
-      <canvas ref={canvasRef} className="hidden" />
     </div>
   );
 }
