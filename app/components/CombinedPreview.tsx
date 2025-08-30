@@ -13,6 +13,7 @@ interface CombinedPreviewProps {
 interface LoadedImage {
   element: HTMLImageElement;
   type: keyof AvatarTraits;
+  isGif: boolean;
 }
 
 export default function CombinedPreview({
@@ -24,9 +25,13 @@ export default function CombinedPreview({
   const [loadedImages, setLoadedImages] = useState<LoadedImage[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerSize, setContainerSize] = useState({ width: 300, height: 300 });
-  const [gifSyncKey, setGifSyncKey] = useState(0);
+  const [renderKey, setRenderKey] = useState(0);
   const imageRefs = useRef<Map<string, HTMLImageElement>>(new Map());
   const syncTimestampRef = useRef<number>(Date.now());
+  const hasGifsRef = useRef<boolean>(false);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const animationFrameRef = useRef<number>(0);
+  const gifElementsRef = useRef<Map<string, HTMLImageElement>>(new Map());
 
   // Update container size based on window size
   useEffect(() => {
@@ -43,6 +48,7 @@ export default function CombinedPreview({
 
     return () => {
       window.removeEventListener('resize', updateSize);
+      cancelAnimationFrame(animationFrameRef.current);
     };
   }, []);
 
@@ -50,8 +56,11 @@ export default function CombinedPreview({
   useEffect(() => {
     const newTimestamp = Date.now();
     syncTimestampRef.current = newTimestamp;
-    setGifSyncKey((prev) => prev + 1);
+    setRenderKey(prev => prev + 1);
     setLoadedImages([]);
+    hasGifsRef.current = false;
+    cancelAnimationFrame(animationFrameRef.current);
+    gifElementsRef.current.clear();
   }, [traits]);
 
   // Check if all selected traits have loaded images
@@ -100,6 +109,12 @@ export default function CombinedPreview({
     // Clear previous images
     setLoadedImages([]);
     imageRefs.current.clear();
+    gifElementsRef.current.clear();
+
+    // Check if we have any GIFs
+    hasGifsRef.current = Object.values(traits).some(
+      trait => trait !== null && trait.image.endsWith('.gif')
+    );
 
     // Create a promise for each image load
     const loadPromises: Promise<LoadedImage>[] = [];
@@ -123,7 +138,7 @@ export default function CombinedPreview({
           imageRefs.current.set(traitType, img);
 
           img.onload = () => {
-            resolve({ element: img, type: traitType });
+            resolve({ element: img, type: traitType, isGif });
           };
 
           img.onerror = () => {
@@ -145,7 +160,7 @@ export default function CombinedPreview({
         setError(error.message);
         onProcessingStateChange(false);
       });
-  }, [traits, onProcessingStateChange, gifSyncKey]);
+  }, [traits, onProcessingStateChange, renderKey]);
 
   // Get the z-index for proper layering
   const getZIndex = useCallback((traitType: keyof AvatarTraits): number => {
@@ -160,6 +175,9 @@ export default function CombinedPreview({
     ];
     return order.indexOf(traitType);
   }, []);
+
+  // Check if we have GIFs
+  const hasGifs = loadedImages.some(img => img.isGif);
 
   return (
     <div className="relative">
@@ -177,24 +195,29 @@ export default function CombinedPreview({
             Select traits to build your avatar
           </div>
         ) : (
-          // Render images using React's declarative approach
-          Array.from(imageRefs.current.entries()).map(([traitType, img]) => {
-            const trait = traits[traitType as keyof AvatarTraits];
+          // Render all images with proper layering
+          loadedImages.map(({ type, isGif }) => {
+            const trait = traits[type];
             if (!trait) return null;
             
-            const isGif = trait.image.endsWith('.gif');
-            // Use the same sync timestamp for all GIFs
+            // For GIFs, use a unique key with timestamp to force reload and synchronization
             const src = isGif
-              ? `${trait.image}?sync=${syncTimestampRef.current}`
+              ? `${trait.image}?sync=${syncTimestampRef.current}&key=${renderKey}`
               : trait.image;
 
             return (
               <img
-                key={traitType}
+                key={`${type}-${renderKey}`}
                 src={src}
                 alt={trait.name}
                 className="absolute top-0 left-0 w-full h-full object-contain"
-                style={{ zIndex: getZIndex(traitType as keyof AvatarTraits) }}
+                style={{ zIndex: getZIndex(type) }}
+                onLoad={() => {
+                  // Store reference to GIF elements for potential manual control
+                  if (isGif) {
+                    gifElementsRef.current.set(type, document.querySelector(`img[src="${src}"]`) as HTMLImageElement);
+                  }
+                }}
               />
             );
           })
@@ -203,6 +226,9 @@ export default function CombinedPreview({
       {error && (
         <div className="mt-2 text-sm text-center text-red-400">{error}</div>
       )}
+      
+      {/* Hidden canvas for potential future use */}
+      <canvas ref={canvasRef} className="hidden" />
     </div>
   );
 }
