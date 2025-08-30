@@ -26,13 +26,14 @@ export default function CombinedPreview({
   const [containerSize, setContainerSize] = useState({ width: 300, height: 300 });
   const [gifSyncKey, setGifSyncKey] = useState(0);
   const imageRefs = useRef<Map<string, HTMLImageElement>>(new Map());
+  const [isLoading, setIsLoading] = useState(false);
 
   // Update container size based on window size
   useEffect(() => {
     const updateSize = () => {
-      if (typeof window !== 'undefined') {
-        const isMobile = window.innerWidth < 768;
-        const size = isMobile ? 280 : 400;
+      if (containerRef.current) {
+        const containerWidth = containerRef.current.offsetWidth;
+        const size = Math.min(containerWidth, 400);
         setContainerSize({ width: size, height: size });
       }
     };
@@ -61,6 +62,7 @@ export default function CombinedPreview({
       onProcessingStateChange(false);
       onGifGenerated(null);
       setError(null);
+      setIsLoading(false);
       return;
     }
 
@@ -70,6 +72,7 @@ export default function CombinedPreview({
 
     if (allLoaded && selectedTraits.length > 0) {
       onProcessingStateChange(false);
+      setIsLoading(false);
     }
   }, [loadedImages, traits, onProcessingStateChange, onGifGenerated]);
 
@@ -88,15 +91,20 @@ export default function CombinedPreview({
     // Check if any traits are selected
     const hasTraits = Object.values(traits).some((trait) => trait !== null);
     if (!hasTraits) {
+      setIsLoading(false);
       return;
     }
 
+    setIsLoading(true);
     onProcessingStateChange(true);
     setError(null);
 
     // Clear previous images
     setLoadedImages([]);
     imageRefs.current.clear();
+
+    let loadedCount = 0;
+    const expectedCount = Object.values(traits).filter(trait => trait !== null).length;
 
     traitOrder.forEach((traitType) => {
       const trait = traits[traitType];
@@ -115,11 +123,19 @@ export default function CombinedPreview({
 
         img.onload = () => {
           setLoadedImages(prev => [...prev, { element: img, type: traitType }]);
+          loadedCount++;
+          
+          // If all expected images have loaded, update state
+          if (loadedCount === expectedCount) {
+            setIsLoading(false);
+            onProcessingStateChange(false);
+          }
         };
 
         img.onerror = () => {
           console.error(`Failed to load image: ${trait.image}`);
           setError(`Failed to load ${traitType} image`);
+          setIsLoading(false);
           onProcessingStateChange(false);
         };
       }
@@ -176,6 +192,12 @@ export default function CombinedPreview({
               />
             );
           })
+        )}
+        
+        {isLoading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-gray-900 bg-opacity-70">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
+          </div>
         )}
       </div>
       {error && (
