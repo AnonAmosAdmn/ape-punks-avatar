@@ -4,7 +4,6 @@
 import { AvatarTraits } from '@/types';
 import { useEffect, useState, useRef, useCallback } from 'react';
 
-
 interface CombinedPreviewProps {
   traits: AvatarTraits;
   onGifGenerated: (url: string | null) => void;
@@ -23,7 +22,6 @@ export default function CombinedPreview({
 }: CombinedPreviewProps) {
   const [error, setError] = useState<string | null>(null);
   const [loadedImages, setLoadedImages] = useState<LoadedImage[]>([]);
-  const [allImagesLoaded, setAllImagesLoaded] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerSize, setContainerSize] = useState({ width: 300, height: 300 });
   const [gifSyncKey, setGifSyncKey] = useState(0);
@@ -51,7 +49,6 @@ export default function CombinedPreview({
   useEffect(() => {
     setGifSyncKey((prev) => prev + 1);
     setLoadedImages([]);
-    setAllImagesLoaded(false);
   }, [traits]);
 
   // Check if all selected traits have loaded images
@@ -61,7 +58,6 @@ export default function CombinedPreview({
       .map(([key]) => key as keyof AvatarTraits);
 
     if (selectedTraits.length === 0) {
-      setAllImagesLoaded(false);
       onProcessingStateChange(false);
       onGifGenerated(null);
       setError(null);
@@ -73,7 +69,6 @@ export default function CombinedPreview({
     );
 
     if (allLoaded && selectedTraits.length > 0) {
-      setAllImagesLoaded(true);
       onProcessingStateChange(false);
     }
   }, [loadedImages, traits, onProcessingStateChange, onGifGenerated]);
