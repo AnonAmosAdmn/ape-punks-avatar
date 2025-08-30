@@ -6,6 +6,7 @@ import { Trait, AvatarTraits, TraitType } from '@/types';
 import TraitSelector from './components/TraitSelector';
 import CombinedPreview from './components/CombinedPreview';
 import SaveButton from './components/SaveButton';
+import SelectedTraitsList from './components/SelectedTraitsList';
 
 // Sample trait data with GIF examples
 const traitOptions: Record<TraitType, Trait[]> = {
@@ -90,6 +91,8 @@ export default function Home() {
             <div className="mt-6 flex justify-center">
               <SaveButton traits={traits} />
             </div>
+            
+            <SelectedTraitsList traits={traits} traitOptions={traitOptions} />
           </div>
         </div>
         
